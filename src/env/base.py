@@ -11,7 +11,17 @@ import docker
 import docker.errors
 from docker.models.containers import Container
 
-_docker_client = docker.from_env()
+# Lazily initialize the Docker client so that import-time (and generate-only
+# workflows) never require a running Docker daemon. The daemon is only needed
+# for `--mode test`, which calls the build/run helpers below.
+_docker_client = None
+
+
+def _get_docker_client():  # type: ignore[no-untyped-def]
+    global _docker_client
+    if _docker_client is None:
+        _docker_client = docker.from_env()
+    return _docker_client
 
 
 type DatabaseTest = Callable[[str], bool]
@@ -118,7 +128,7 @@ class Env:
         tag = f"baxbench_{lang}_{frw}".lower()
         logger.info("Files copied, building the image")
         logger.info("-" * 100)
-        r = _docker_client.images.build(
+        r = _get_docker_client().images.build(
             fileobj=tar_stream,
             nocache=no_cache,
             custom_context=True,
@@ -137,7 +147,7 @@ class Env:
         uid = uuid.uuid4()
         return cast(
             Container,
-            _docker_client.containers.run(
+            _get_docker_client().containers.run(
                 image_id,
                 name=f"baxbench-{uid}",
                 detach=True,

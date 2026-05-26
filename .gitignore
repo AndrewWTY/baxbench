@@ -304,3 +304,16 @@ results3.tar.gz
 results_backup.tar.gz
 results_11_2.tar.gz
 results_old.tar.gz
+
+# AutoBaxBuilder is its own git repo (kept locally, not vendored into this one)
+AutoBaxBuilder/
+
+# Generation result dirs (shipped separately as a zip, not via git) + logs/proof runs
+results_baxbench/
+results_autobax/
+results_proof/
+results_proof_abx/
+results_*/
+logs/
+results.zip
+*.tar.gz

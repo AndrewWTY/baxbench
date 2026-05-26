@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BaxBench &amp; AutoBaxBuilder - Evaluation Pipeline Analysis</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --orange: #db6d28;
+    --purple: #bc8cff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  h1 { color: #fff; font-size: 2rem; margin-bottom: 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem; }
+  h2 { color: var(--accent); font-size: 1.5rem; margin: 2rem 0 1rem; }
+  h3 { color: var(--purple); font-size: 1.15rem; margin: 1.5rem 0 0.75rem; }
+  p { margin-bottom: 0.75rem; }
+  code {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.15em 0.4em;
+    font-size: 0.9em;
+    font-family: 'Fira Code', 'Cascadia Code', monospace;
+  }
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    overflow-x: auto;
+    margin: 1rem 0;
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+  pre code { background: none; border: none; padding: 0; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+  }
+  .card-green  { border-left: 4px solid var(--green); }
+  .card-yellow { border-left: 4px solid var(--yellow); }
+  .card-red    { border-left: 4px solid var(--red); }
+  .card-blue   { border-left: 4px solid var(--accent); }
+  .card-purple { border-left: 4px solid var(--purple); }
+  .badge {
+    display: inline-block;
+    padding: 0.2em 0.6em;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  .badge-green  { background: rgba(63,185,80,0.2); color: var(--green); }
+  .badge-red    { background: rgba(248,81,73,0.2); color: var(--red); }
+  .badge-yellow { background: rgba(210,153,34,0.2); color: var(--yellow); }
+  .badge-blue   { background: rgba(88,166,255,0.2); color: var(--accent); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+  }
+  th, td {
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--border);
+    text-align: left;
+  }
+  th { background: var(--surface); color: var(--accent); font-weight: 600; }
+  tr:hover { background: rgba(88,166,255,0.05); }
+  .flow-diagram {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin: 1rem 0;
+  }
+  .flow-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    text-align: center;
+    min-width: 120px;
+  }
+  .flow-box.docker { border-color: var(--red); }
+  .flow-box.no-docker { border-color: var(--green); }
+  .flow-arrow { color: var(--text-muted); font-size: 1.5rem; }
+  ul, ol { margin: 0.5rem 0 0.75rem 1.5rem; }
+  li { margin-bottom: 0.3rem; }
+  .toc { list-style: none; padding: 0; margin: 1rem 0; }
+  .toc li { margin: 0.3rem 0; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  a { color: var(--accent); }
+  .highlight { color: var(--yellow); font-weight: 600; }
+  .muted { color: var(--text-muted); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+</style>
+</head>
+<body>
+
+<h1>BaxBench &amp; AutoBaxBuilder - Evaluation Pipeline Analysis</h1>
+<p class="muted">Analysis date: 2026-05-26 | Machine: 8x NVIDIA H100 80GB | vLLM 0.6.3</p>
+
+<div class="card card-blue">
+<strong>Purpose of this report:</strong> Understand the evaluation pipeline of BaxBench and AutoBaxBuilder,
+determine if inference can be separated from Docker execution, and provide a one-click deployment
+script for evaluating HuggingFace models.
+</div>
+
+<h2>Table of Contents</h2>
+<ol class="toc">
+  <li><a href="#sec1">1. BaxBench Evaluation Pipeline Overview</a></li>
+  <li><a href="#sec2">2. AutoBaxBuilder &amp; Its Dependency on BaxBench</a></li>
+  <li><a href="#sec3">3. Can Inference Be Separated from Docker?</a></li>
+  <li><a href="#sec4">4. Model Deployment Script</a></li>
+  <li><a href="#sec5">5. Step-by-Step Evaluation Guide</a></li>
+  <li><a href="#sec6">6. Key Files Reference</a></li>
+</ol>
+
+<hr>
+
+<h2 id="sec1">1. BaxBench Evaluation Pipeline Overview</h2>
+
+<h3>1.1 What BaxBench Does</h3>
+<p>BaxBench is a code security benchmark that evaluates LLMs on their ability to generate
+<em>functionally correct</em> and <em>secure</em> web application code. It tests 30 scenarios across
+14 web framework environments (Python, JS, Go, Ruby, Rust, PHP).</p>
+
+<h3>1.2 Three-Phase Pipeline</h3>
+<p>The pipeline is driven by <code>src/main.py</code> with three distinct modes:</p>
+
+<div class="flow-diagram">
+  <div class="flow-box no-docker">
+    <strong>Phase 1</strong><br>
+    <code>--mode generate</code><br>
+    <span class="muted">LLM Inference</span><br>
+    <span class="badge badge-green">No Docker Daemon</span>
+  </div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-box docker">
+    <strong>Phase 2</strong><br>
+    <code>--mode test</code><br>
+    <span class="muted">Build &amp; Test in Docker</span><br>
+    <span class="badge badge-red">Docker Required</span>
+  </div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-box no-docker">
+    <strong>Phase 3</strong><br>
+    <code>--mode evaluate</code><br>
+    <span class="muted">Score Results</span><br>
+    <span class="badge badge-green">No Docker Daemon</span>
+  </div>
+</div>
+
+<h3>1.3 Phase 1: Code Generation (Inference)</h3>
+<div class="card card-green">
+<p><strong>Entry:</strong> <code>src/main.py --mode generate</code> &rarr; <code>TaskHandler.run_generation()</code></p>
+<p><strong>What happens:</strong></p>
+<ol>
+  <li>A <code>Task</code> is created for each (model, scenario, environment) combination</li>
+  <li>A <code>Prompter</code> builds a prompt from the scenario's API spec + environment instructions</li>
+  <li>The prompt is sent to the LLM via one of 4 backends:
+    <ul>
+      <li><strong>OpenAI/Together</strong> - <code>prompt_openai_together_batch()</code></li>
+      <li><strong>Anthropic</strong> - <code>prompt_anthropic()</code></li>
+      <li><strong>OpenRouter</strong> - <code>prompt_openrouter()</code></li>
+      <li><strong>vLLM</strong> - <code>prompt_vllm()</code> &mdash; connects to <code>http://localhost:{port}/v1</code></li>
+    </ul>
+  </li>
+  <li>Responses are parsed to extract code files (regex-based: markdown or <code>&lt;CODE&gt;</code> tags)</li>
+  <li>Code is saved to <code>results/{model}/{scenario}/{env}/temp{t}-{spec}-{safety}/sample{n}/code/</code></li>
+</ol>
+<p><strong>Docker needed?</strong> <span class="badge badge-green">NO</span> &mdash; only calls LLM APIs</p>
+</div>
+
+<h3>1.4 Phase 2: Testing (Docker)</h3>
+<div class="card card-red">
+<p><strong>Entry:</strong> <code>src/main.py --mode test</code> &rarr; <code>TaskHandler.run_tests()</code></p>
+<p><strong>What happens:</strong></p>
+<ol>
+  <li>Generated code is packaged into a Docker image (<code>env.build_docker_image()</code>)</li>
+  <li>Container is started with port mapping from a pool (default 12345-22345)</li>
+  <li>Waits for the web server to respond (up to 60s timeout)</li>
+  <li><strong>Functional tests:</strong> HTTP-based tests verify correct behavior</li>
+  <li><strong>Security tests (exploits):</strong> Try SQL injection, XSS, path traversal, etc.</li>
+  <li>Results saved as <code>test_results.json</code> per sample</li>
+</ol>
+<p><strong>Docker needed?</strong> <span class="badge badge-red">YES</span> &mdash; builds images, runs containers, maps ports</p>
+</div>
+
+<h3>1.5 Phase 3: Evaluation (Scoring)</h3>
+<div class="card card-green">
+<p><strong>Entry:</strong> <code>src/main.py --mode evaluate</code> &rarr; <code>TaskHandler.evaluate_results()</code></p>
+<p><strong>What happens:</strong></p>
+<ol>
+  <li>Reads <code>test_results.json</code> from each sample</li>
+  <li>Computes metrics: <strong>pass@k</strong> (functional), <strong>secure_pass@k</strong> (functional + secure), CWE frequencies</li>
+  <li>Outputs tables with color-coded results</li>
+</ol>
+<p><strong>Docker needed?</strong> <span class="badge badge-green">NO</span> &mdash; reads JSON files only</p>
+</div>
+
+<h3>1.6 vLLM Integration Details</h3>
+<div class="card card-purple">
+<p><strong>File:</strong> <code>src/prompts.py:279-338</code> (<code>prompt_vllm()</code>)</p>
+<p>BaxBench connects to a local vLLM server via the <strong>OpenAI-compatible API</strong>:</p>
+<pre><code>client = OpenAI(
+    base_url=f"http://localhost:{vllm_port}/v1",
+    api_key="EMPTY",
+)
+response = client.chat.completions.create(
+    model=self.model,          # the --models arg is passed directly
+    messages=[system_msg, user_msg],
+    temperature=self.temperature,
+    max_tokens=29000,          # default if model not in vllm_context_lengths
+)</code></pre>
+<p><strong>Key insight:</strong> The model name you pass to <code>--models</code> must match the
+<code>--served-model-name</code> in vLLM. Our deploy script handles this automatically.</p>
+<p>If model is not in the hardcoded <code>vllm_context_lengths</code> dict, <code>max_tokens</code> defaults to 29000.
+This is fine for 7B models with 32k context.</p>
+</div>
+
+<hr>
+
+<h2 id="sec2">2. AutoBaxBuilder &amp; Its Dependency on BaxBench</h2>
+
+<h3>2.1 What AutoBaxBuilder Does</h3>
+<p>AutoBaxBuilder <em>automatically generates</em> new benchmark scenarios (test cases + exploit code)
+using an agentic LLM pipeline. It produces scenario <code>.py</code> files that plug directly into BaxBench.</p>
+
+<h3>2.2 Three-Stage Generation Pipeline</h3>
+<table>
+<tr><th>Stage</th><th>Flag</th><th>What It Does</th><th>Uses BaxBench?</th></tr>
+<tr>
+  <td>1. Generate Scenarios</td>
+  <td><code>--generate_scenarios</code></td>
+  <td>LLM generates scenario idea, OpenAPI spec, text spec</td>
+  <td>No</td>
+</tr>
+<tr>
+  <td>2. Generate Tests</td>
+  <td><code>--generate_tests</code></td>
+  <td>Generates functional tests, iterates via blackbox feedback</td>
+  <td><span class="badge badge-red">Yes</span> - runs BaxBench generate + test to validate</td>
+</tr>
+<tr>
+  <td>3. Generate Exploits</td>
+  <td><code>--generate_exploits</code></td>
+  <td>Finds vulnerabilities, generates exploit code, iterates</td>
+  <td><span class="badge badge-red">Yes</span> - runs BaxBench test to verify exploits work</td>
+</tr>
+</table>
+
+<h3>2.3 How AutoBaxBuilder Uses BaxBench</h3>
+<p>AutoBaxBuilder invokes BaxBench through <code>src/baxbench_wrapper.py</code>, which:</p>
+<ol>
+  <li>Translates AutoBaxBuilder's config into BaxBench CLI args (<code>get_baxbench_args()</code>)</li>
+  <li>Calls BaxBench's <code>main()</code> function with modes <code>generate</code>, <code>test</code>, <code>evaluate</code></li>
+  <li>Stages 2 and 3 require Docker because they run BaxBench's test mode internally</li>
+</ol>
+
+<h3>2.4 AutoBaxBuilder's Own Models</h3>
+<p>AutoBaxBuilder uses LLMs (GPT-5, Claude Sonnet 4, DeepSeek-R1, Qwen3-Coder) for its <em>agentic generation</em>
+pipeline. This is separate from the models being <em>evaluated</em> by BaxBench.</p>
+
+<hr>
+
+<h2 id="sec3">3. Can Inference Be Separated from Docker?</h2>
+
+<div class="card card-green">
+<h3>Answer: YES - Inference Is Already Architecturally Separated</h3>
+<p>BaxBench's three-mode design (<code>generate</code> / <code>test</code> / <code>evaluate</code>) already
+separates inference from Docker execution. You can run <code>--mode generate</code> on a GPU machine
+without Docker, then transfer results to a Docker-capable machine for testing.</p>
+</div>
+
+<h3>3.1 The Catch: <code>import docker</code> at Module Level</h3>
+<div class="card card-yellow">
+<p><strong>Problem:</strong> Several source files have <code>import docker</code> at the top level:</p>
+<ul>
+  <li><code>src/main.py:5</code> &mdash; <code>import docker</code> (only used in <code>--mode test</code> for container pruning)</li>
+  <li><code>src/tasks.py:19</code> &mdash; <code>from docker.models.containers import Container</code></li>
+  <li><code>src/env/base.py:10-11</code> &mdash; <code>import docker</code> / <code>import docker.errors</code></li>
+  <li><code>src/exploits.py:13</code> &mdash; <code>import docker</code></li>
+</ul>
+<p>These imports run even in <code>--mode generate</code>, causing an <code>ImportError</code> if the
+<code>docker</code> Python package is not installed.</p>
+</div>
+
+<h3>3.2 Solution: Install the Python Package Without the Daemon</h3>
+<div class="card card-green">
+<p><strong>Easy fix:</strong> Install the <code>docker</code> Python package (it's just an API client library):</p>
+<pre><code>pip install docker</code></pre>
+<p>This satisfies the imports. The actual Docker daemon is only contacted during <code>--mode test</code>.
+Running <code>--mode generate</code> will work perfectly without a Docker daemon running.</p>
+</div>
+
+<h3>3.3 Two-Machine Workflow</h3>
+<table>
+<tr><th>Step</th><th>Machine</th><th>Command</th><th>Requires</th></tr>
+<tr>
+  <td>1. Serve model</td>
+  <td>GPU machine</td>
+  <td><code>./deploy_model.sh Qwen/Qwen2.5-Coder-7B-Instruct --gpu 5</code></td>
+  <td>GPU, vLLM</td>
+</tr>
+<tr>
+  <td>2. Generate code</td>
+  <td>GPU machine</td>
+  <td><code>python3 main.py --models "..." --mode generate --vllm</code></td>
+  <td>vLLM server, <code>pip install docker</code></td>
+</tr>
+<tr>
+  <td>3. Copy results</td>
+  <td>&mdash;</td>
+  <td><code>rsync -av results/ docker-machine:baxbench/results/</code></td>
+  <td>&mdash;</td>
+</tr>
+<tr>
+  <td>4. Test code</td>
+  <td>Docker machine</td>
+  <td><code>python3 main.py --models "..." --mode test</code></td>
+  <td>Docker daemon</td>
+</tr>
+<tr>
+  <td>5. Evaluate</td>
+  <td>Either machine</td>
+  <td><code>python3 main.py --models "..." --mode evaluate</code></td>
+  <td>Nothing special</td>
+</tr>
+</table>
+
+<h3>3.4 Single-Machine Workflow (If Docker Available Later)</h3>
+<p>If Docker becomes available on the same machine, all three phases can run sequentially
+with no file transfer needed.</p>
+
+<hr>
+
+<h2 id="sec4">4. Model Deployment Script</h2>
+
+<h3>4.1 Script Location</h3>
+<p><code>/home/wutianyi/baxbench/deploy_model.sh</code></p>
+
+<h3>4.2 What It Does</h3>
+<ol>
+  <li>Checks GPU availability and free memory</li>
+  <li>Downloads the model from HuggingFace (with resume support)</li>
+  <li>Launches a vLLM OpenAI-compatible server on the specified GPU and port</li>
+  <li>Sets <code>--served-model-name</code> to match the HuggingFace model ID, so BaxBench's <code>--models</code> arg works directly</li>
+</ol>
+
+<h3>4.3 Usage Examples</h3>
+<pre><code># Deploy Qwen2.5-Coder-7B-Instruct on GPU 5, port 8000
+./deploy_model.sh Qwen/Qwen2.5-Coder-7B-Instruct --gpu 5 --port 8000
+
+# Deploy SecCoderX model on GPU 6, port 8001
+./deploy_model.sh SecCoderX/Qwen2.5_Coder_7B_SecCoderX_aligned --gpu 6 --port 8001
+
+# Download only (no server)
+./deploy_model.sh Qwen/Qwen2.5-Coder-7B-Instruct --download-only</code></pre>
+
+<h3>4.4 GPU Availability (Current)</h3>
+<table>
+<tr><th>GPU</th><th>Memory Used</th><th>Memory Total</th><th>Free</th><th>Status</th></tr>
+<tr><td>0</td><td>9,337 MiB</td><td>81,559 MiB</td><td>72,222 MiB</td><td><span class="badge badge-green">Available</span></td></tr>
+<tr><td>1</td><td>71,357 MiB</td><td>81,559 MiB</td><td>10,202 MiB</td><td><span class="badge badge-yellow">Tight</span></td></tr>
+<tr><td>2</td><td>9,335 MiB</td><td>81,559 MiB</td><td>72,224 MiB</td><td><span class="badge badge-green">Available</span></td></tr>
+<tr><td>3</td><td>61,475 MiB</td><td>81,559 MiB</td><td>20,084 MiB</td><td><span class="badge badge-yellow">Limited</span></td></tr>
+<tr><td>4</td><td>32,601 MiB</td><td>81,559 MiB</td><td>48,958 MiB</td><td><span class="badge badge-green">Available</span></td></tr>
+<tr><td>5</td><td>0 MiB</td><td>81,559 MiB</td><td>81,559 MiB</td><td><span class="badge badge-green">Empty</span></td></tr>
+<tr><td>6</td><td>0 MiB</td><td>81,559 MiB</td><td>81,559 MiB</td><td><span class="badge badge-green">Empty</span></td></tr>
+<tr><td>7</td><td>2,235 MiB</td><td>81,559 MiB</td><td>79,324 MiB</td><td><span class="badge badge-green">Near-empty</span></td></tr>
+</table>
+<p>A 7B model in FP16 needs ~14GB. <strong>GPUs 5 and 6 are ideal</strong> &mdash; completely free H100 80GB cards.</p>
+
+<hr>
+
+<h2 id="sec5">5. Step-by-Step Evaluation Guide</h2>
+
+<h3>5.1 Prerequisites</h3>
+<pre><code># Install the docker Python package (client library only, no daemon needed)
+pip install docker
+
+# Verify vLLM is available
+python3 -c "import vllm; print(vllm.__version__)"
+</code></pre>
+
+<h3>5.2 Deploy Both Models (in two terminals)</h3>
+<pre><code># Terminal 1: Qwen baseline
+./deploy_model.sh Qwen/Qwen2.5-Coder-7B-Instruct --gpu 5 --port 8000
+
+# Terminal 2: SecCoderX fine-tune
+./deploy_model.sh SecCoderX/Qwen2.5_Coder_7B_SecCoderX_aligned --gpu 6 --port 8001</code></pre>
+
+<h3>5.3 Run BaxBench Generation</h3>
+<pre><code>cd /home/wutianyi/baxbench/src
+
+# Generate code from Qwen baseline
+python3 main.py \
+  --models "Qwen/Qwen2.5-Coder-7B-Instruct" \
+  --mode generate \
+  --vllm --vllm_port 8000 \
+  --n_samples 5 \
+  --temperature 0.2
+
+# Generate code from SecCoderX fine-tune
+python3 main.py \
+  --models "SecCoderX/Qwen2.5_Coder_7B_SecCoderX_aligned" \
+  --mode generate \
+  --vllm --vllm_port 8001 \
+  --n_samples 5 \
+  --temperature 0.2</code></pre>
+
+<h3>5.4 Run Testing (Requires Docker &mdash; on another machine if needed)</h3>
+<pre><code># If results were transferred from GPU machine:
+# rsync -av gpu-machine:baxbench/results/ ./results/
+
+python3 main.py \
+  --models "Qwen/Qwen2.5-Coder-7B-Instruct" "SecCoderX/Qwen2.5_Coder_7B_SecCoderX_aligned" \
+  --mode test \
+  --n_samples 5 \
+  --prune_docker</code></pre>
+
+<h3>5.5 Evaluate Results</h3>
+<pre><code>python3 main.py \
+  --models "Qwen/Qwen2.5-Coder-7B-Instruct" "SecCoderX/Qwen2.5_Coder_7B_SecCoderX_aligned" \
+  --mode evaluate \
+  --n_samples 5 \
+  --ks 1 5</code></pre>
+
+<h3>5.6 Scope Options</h3>
+<p>You can restrict to specific scenarios and environments for faster iteration:</p>
+<pre><code># Just Python-Flask + login scenario for a quick smoke test
+python3 main.py \
+  --models "Qwen/Qwen2.5-Coder-7B-Instruct" \
+  --mode generate --vllm --vllm_port 8000 \
+  --envs Python-Flask \
+  --scenarios login \
+  --n_samples 1</code></pre>
+
+<hr>
+
+<h2 id="sec6">6. Key Files Reference</h2>
+
+<h3>BaxBench</h3>
+<table>
+<tr><th>File</th><th>Purpose</th></tr>
+<tr><td><code>src/main.py</code></td><td>CLI entry point, mode dispatcher (generate/test/evaluate)</td></tr>
+<tr><td><code>src/prompts.py</code></td><td>LLM inference for all 4 backends (OpenAI, Anthropic, OpenRouter, vLLM)</td></tr>
+<tr><td><code>src/tasks.py</code></td><td>Task execution, Docker container management, test running</td></tr>
+<tr><td><code>src/env/base.py</code></td><td>Environment base class, Docker image building</td></tr>
+<tr><td><code>src/env/python.py</code></td><td>Flask, FastAPI, Django, aiohttp environments</td></tr>
+<tr><td><code>src/scenarios/base.py</code></td><td>Scenario base class, prompt template construction</td></tr>
+<tr><td><code>src/scenarios/__init__.py</code></td><td>Registry of all 30 scenarios</td></tr>
+<tr><td><code>src/cwes.py</code></td><td>14 CWE type definitions (SQL injection, XSS, etc.)</td></tr>
+<tr><td><code>src/exploits.py</code></td><td>Security test helper functions</td></tr>
+<tr><td><code>src/print.py</code></td><td>Results table formatting</td></tr>
+</table>
+
+<h3>AutoBaxBuilder</h3>
+<table>
+<tr><th>File</th><th>Purpose</th></tr>
+<tr><td><code>AutoBaxBuilder/src/main.py</code></td><td>Entry point (3 stages: scenarios, tests, exploits)</td></tr>
+<tr><td><code>AutoBaxBuilder/src/baxbench_wrapper.py</code></td><td>Bridge to BaxBench's evaluation pipeline</td></tr>
+<tr><td><code>AutoBaxBuilder/src/agent/config.py</code></td><td>Configuration, BaxBench arg translation</td></tr>
+<tr><td><code>AutoBaxBuilder/src/agent/generate_scenarios.py</code></td><td>Scenario idea + spec generation</td></tr>
+<tr><td><code>AutoBaxBuilder/src/agent/functional_tests.py</code></td><td>Test generation + iteration</td></tr>
+<tr><td><code>AutoBaxBuilder/src/agent/generate_exploits.py</code></td><td>Exploit generation + iteration</td></tr>
+<tr><td><code>AutoBaxBuilder/src/models/</code></td><td>LLM client implementations (OpenAI, Anthropic, Together, OpenRouter)</td></tr>
+<tr><td><code>AutoBaxBuilder/autobaxbuilder.sh</code></td><td>Convenience wrapper script</td></tr>
+</table>
+
+<hr>
+
+<div class="card card-blue">
+<h3>Summary</h3>
+<ul>
+  <li><strong>Inference is already separated</strong> from Docker by design (<code>--mode generate</code> vs <code>--mode test</code>)</li>
+  <li>You only need <code>pip install docker</code> to satisfy Python imports; no Docker daemon needed for generation</li>
+  <li>The <code>deploy_model.sh</code> script handles downloading + serving any HuggingFace model with vLLM</li>
+  <li>GPUs 5 and 6 are completely free &mdash; deploy both models simultaneously</li>
+  <li>After generation, transfer <code>results/</code> to a Docker-capable machine for testing</li>
+</ul>
+</div>
+
+<p class="muted" style="margin-top: 2rem; text-align: center;">
+  Generated by Claude Code &mdash; 2026-05-26
+</p>
+
+</body>
+</html>
