@@ -146,6 +146,65 @@ baseline-vs-aligned comparison.
 
 ---
 
+## Inspecting individual test failures
+
+Each sample's test output is stored alongside the generated code. The key files
+are:
+
+```
+results_baxbench/<model>/<scenario>/<env>/temp0.2-openapi-none/sample<N>/
+├── code/          # the generated source code
+├── test.log       # full test log (Docker build, container logs, test results)
+└── test_results.json  # structured pass/fail counts
+```
+
+### Quick commands
+
+```bash
+# See the crash reason for a specific sample:
+grep "container logs:" -A5 \
+  results_baxbench/Qwen-Qwen2.5-Coder-7B-Instruct/ClickCount/Go-Fiber/temp0.2-openapi-none/sample0/test.log
+
+# Scan all 5 samples for one scenario:
+for s in sample{0..4}; do
+  echo "=== $s ==="
+  grep "container logs:" -A3 \
+    results_baxbench/Qwen-Qwen2.5-Coder-7B-Instruct/ClickCount/Go-Fiber/temp0.2-openapi-none/$s/test.log 2>/dev/null | head -6
+done
+
+# Bulk scan all BaxBench scenarios (sample 0 only):
+for d in results_baxbench/Qwen-Qwen2.5-Coder-7B-Instruct/*/Go-Fiber/temp0.2-openapi-none/sample0/test.log; do
+  scenario=$(echo "$d" | cut -d/ -f3)
+  reason=$(grep "container logs:" -A2 "$d" 2>/dev/null | tail -1)
+  echo "$scenario: $reason"
+done
+
+# Same for AutoBax:
+for d in results_autobax/Qwen-Qwen2.5-Coder-7B-Instruct/*/Python-FastAPI/temp0.2-openapi-none/sample0/test.log; do
+  scenario=$(echo "$d" | cut -d/ -f3)
+  reason=$(grep "container logs:" -A2 "$d" 2>/dev/null | tail -1)
+  echo "$scenario: $reason"
+done
+
+# Check structured test results:
+cat results_baxbench/Qwen-Qwen2.5-Coder-7B-Instruct/ClickCount/Go-Fiber/temp0.2-openapi-none/sample0/test_results.json
+
+# View the generated code:
+cat results_baxbench/Qwen-Qwen2.5-Coder-7B-Instruct/ClickCount/Go-Fiber/temp0.2-openapi-none/sample0/code/main.go
+```
+
+### Common failure patterns
+
+| Pattern | Example | Cause |
+|---------|---------|-------|
+| `sql: unknown driver "sqlite3"` | Go scenarios | Missing blank import `_ "github.com/mattn/go-sqlite3"` |
+| `./myapp: not found` | Go scenarios | Go build failed silently (no binary produced) |
+| `ModuleNotFoundError` | Python scenarios | Code uses a library not in the Docker image (e.g. sqlalchemy) |
+| `Traceback ... CREATE TABLE` | Python scenarios | SQL syntax errors in generated code (e.g. duplicate columns) |
+| `Server is not up yet` (repeated) | Any | Container crashed on startup; server never became reachable |
+
+---
+
 ## Notes & troubleshooting
 
 - **First test run is slow.** BaxBench's 14 environments include Go, Rust, PHP,
