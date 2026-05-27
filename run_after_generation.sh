@@ -39,6 +39,7 @@ MODELS_OVERRIDE=""          # space-separated; empty => auto-detect
 DO_BAXBENCH=1
 DO_AUTOBAX=1
 PRUNE=1
+FORCE=0
 
 # The 28 original BaxBench scenario ids (everything else in the registry is AutoBax).
 ORIG_IDS="Calculator ClickCount Compiler CreditCardService FileSearch Forum \
@@ -65,6 +66,7 @@ Usage: $(basename "$0") [OPTIONS]
   --ks "1 5"             k values for pass@k (default: "1 5")
   --max-concurrent N     Max concurrent test containers (default: 4)
   --limit N              Restrict each benchmark to first N task instances (quick test run)
+  --force                Force re-test of already-tested samples
   --python BIN           Python executable (default: python)
   --skip-baxbench        Do not process the BaxBench results
   --skip-autobax         Do not process the AutoBax results
@@ -90,6 +92,7 @@ while [[ $# -gt 0 ]]; do
     --ks)           KS="$2";           shift 2;;
     --max-concurrent) MAX_CONCURRENT="$2"; shift 2;;
     --limit)        LIMIT="$2";         shift 2;;
+    --force)        FORCE=1;           shift;;
     --python)       PYTHON_BIN="$2";   shift 2;;
     --skip-baxbench) DO_BAXBENCH=0;    shift;;
     --skip-autobax)  DO_AUTOBAX=0;     shift;;
@@ -174,6 +177,7 @@ run_one() {
                 --results_dir "$results_dir" --max_concurrent_runs "$MAX_CONCURRENT" \
                 "${scen_args[@]}")
   [[ -n "$LIMIT" ]] && common+=(--limit "$LIMIT")
+  [[ "$FORCE" == "1" ]] && common+=(--force)
 
   if [[ "$mode" == "test" ]]; then
     log "TEST  [$bench]  ($results_dir)"
