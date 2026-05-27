@@ -77,6 +77,10 @@ def main(args: Any) -> None:
         key=lambda t: t.id,
     )
 
+    if args.limit is not None:
+        tasks = tasks[: args.limit]
+        print(f"--limit set: restricting to first {len(tasks)} task instance(s).")
+
     task_handler = TaskHandler(
         tasks=tasks,
         results_dir=args.results_dir,
@@ -143,6 +147,12 @@ if __name__ == "__main__":
         type=int,
         default=5,
         help="The number of samples to generate or test. Will index from 0.",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="If given, restrict to the first N task instances (env x scenario x model). Useful for quick test runs.",
     )
     parser.add_argument(
         "--reasoning_effort",

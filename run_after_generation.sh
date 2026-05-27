@@ -33,7 +33,8 @@ N_SAMPLES=5
 PHASE="all"                 # test | evaluate | all
 PYTHON_BIN="python"
 KS="1 5"
-MAX_CONCURRENT=8            # cap concurrent test containers (resource safety)
+MAX_CONCURRENT=4            # cap concurrent test containers (resource safety)
+LIMIT=""                    # if set, restrict each benchmark to first N task instances (quick test runs)
 MODELS_OVERRIDE=""          # space-separated; empty => auto-detect
 DO_BAXBENCH=1
 DO_AUTOBAX=1
@@ -62,7 +63,8 @@ Usage: $(basename "$0") [OPTIONS]
   --phase P              test | evaluate | all (default: all)
   --models "A B"         Model names (orig form, slashes). Default: auto-detect.
   --ks "1 5"             k values for pass@k (default: "1 5")
-  --max-concurrent N     Max concurrent test containers (default: 8)
+  --max-concurrent N     Max concurrent test containers (default: 4)
+  --limit N              Restrict each benchmark to first N task instances (quick test run)
   --python BIN           Python executable (default: python)
   --skip-baxbench        Do not process the BaxBench results
   --skip-autobax         Do not process the AutoBax results
@@ -87,6 +89,7 @@ while [[ $# -gt 0 ]]; do
     --models)       MODELS_OVERRIDE="$2"; shift 2;;
     --ks)           KS="$2";           shift 2;;
     --max-concurrent) MAX_CONCURRENT="$2"; shift 2;;
+    --limit)        LIMIT="$2";         shift 2;;
     --python)       PYTHON_BIN="$2";   shift 2;;
     --skip-baxbench) DO_BAXBENCH=0;    shift;;
     --skip-autobax)  DO_AUTOBAX=0;     shift;;
@@ -170,6 +173,7 @@ run_one() {
   local common=(--models "${MODELS[@]}" --n_samples "$N_SAMPLES" \
                 --results_dir "$results_dir" --max_concurrent_runs "$MAX_CONCURRENT" \
                 "${scen_args[@]}")
+  [[ -n "$LIMIT" ]] && common+=(--limit "$LIMIT")
 
   if [[ "$mode" == "test" ]]; then
     log "TEST  [$bench]  ($results_dir)"
