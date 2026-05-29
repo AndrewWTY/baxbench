@@ -30,6 +30,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BAXBENCH_DIR="$SCRIPT_DIR/results_baxbench"
 AUTOBAX_DIR="$SCRIPT_DIR/results_autobax"
 N_SAMPLES=5
+TEMPERATURE="0.2"           # must match generation (use 0 for the greedy/temp=0 run)
 PHASE="all"                 # test | evaluate | all
 PYTHON_BIN="python"
 KS="1 5"
@@ -61,6 +62,7 @@ Usage: $(basename "$0") [OPTIONS]
   --baxbench-dir DIR     Results dir for BaxBench (default: ./results_baxbench)
   --autobax-dir DIR      Results dir for AutoBax  (default: ./results_autobax)
   --n-samples N          Samples per task, must match generation (default: 5)
+  --temperature T        Sampling temperature, must match generation (default: 0.2; use 0 for the greedy run)
   --phase P              test | evaluate | all (default: all)
   --models "A B"         Model names (orig form, slashes). Default: auto-detect.
   --ks "1 5"             k values for pass@k (default: "1 5")
@@ -87,6 +89,7 @@ while [[ $# -gt 0 ]]; do
     --baxbench-dir) BAXBENCH_DIR="$2"; shift 2;;
     --autobax-dir)  AUTOBAX_DIR="$2";  shift 2;;
     --n-samples)    N_SAMPLES="$2";    shift 2;;
+    --temperature)  TEMPERATURE="$2";  shift 2;;
     --phase)        PHASE="$2";        shift 2;;
     --models)       MODELS_OVERRIDE="$2"; shift 2;;
     --ks)           KS="$2";           shift 2;;
@@ -174,6 +177,7 @@ run_one() {
   [[ -d "$results_dir" ]] || { warn "results dir for $bench not found ($results_dir); skipping."; return 0; }
 
   local common=(--models "${MODELS[@]}" --n_samples "$N_SAMPLES" \
+                --temperature "$TEMPERATURE" \
                 --results_dir "$results_dir" --max_concurrent_runs "$MAX_CONCURRENT" \
                 "${scen_args[@]}")
   [[ -n "$LIMIT" ]] && common+=(--limit "$LIMIT")
